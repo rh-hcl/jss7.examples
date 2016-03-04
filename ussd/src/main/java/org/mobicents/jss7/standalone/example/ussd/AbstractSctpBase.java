@@ -17,6 +17,7 @@ import org.mobicents.protocols.ss7.indicator.RoutingIndicator;
 import org.mobicents.protocols.ss7.map.api.MAPDialogListener;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.MAPServiceSupplementaryListener;
 import org.mobicents.protocols.ss7.m3ua.impl.parameter.ParameterFactoryImpl;
+import org.mobicents.protocols.ss7.sccp.impl.parameter.SccpAddressImpl;
 import org.mobicents.protocols.ss7.sccp.parameter.SccpAddress;
 
 /**
@@ -30,11 +31,12 @@ public abstract class AbstractSctpBase implements MAPDialogListener, MAPServiceS
 	protected static String logFileName = "maplog.txt";
 
 	// MTP Details
-	protected final int CLIENT_SPC = 1;
-	protected final int SERVET_SPC = 2;
-	protected final int NETWORK_INDICATOR = 2;
-	protected final int SERVICE_INIDCATOR = 3; // SCCP
-	protected final int SSN = 8;
+	protected static final int CLIENT_SPC = 1;
+	protected static final int SERVER_SPC = 2;
+	protected static final int NETWORK_INDICATOR = 2;
+	protected static final int SERVICE_INIDCATOR = 3; // SCCP
+	protected static final int SSN = 8;
+	protected static final int NETWORK_ID = 0;
 
 	// M3UA details
 	// protected final String CLIENT_IP = "172.31.96.40";
@@ -52,10 +54,10 @@ public abstract class AbstractSctpBase implements MAPDialogListener, MAPServiceS
 
 	protected final String SERVER_NAME = "testserver";
 
-	protected final SccpAddress SCCP_CLIENT_ADDRESS = new SccpAddress(RoutingIndicator.ROUTING_BASED_ON_DPC_AND_SSN,
-			CLIENT_SPC, null, SSN);
-	protected final SccpAddress SCCP_SERVER_ADDRESS = new SccpAddress(RoutingIndicator.ROUTING_BASED_ON_DPC_AND_SSN,
-			SERVET_SPC, null, SSN);
+	protected final SccpAddress SCCP_CLIENT_ADDRESS = new SccpAddressImpl(RoutingIndicator.ROUTING_BASED_ON_DPC_AND_SSN,
+			null, CLIENT_SPC, SSN);
+	protected final SccpAddress SCCP_SERVER_ADDRESS = new SccpAddressImpl(RoutingIndicator.ROUTING_BASED_ON_DPC_AND_SSN,
+			null, SERVER_SPC, SSN);
 
 	protected final ParameterFactoryImpl factory = new ParameterFactoryImpl();
 
@@ -65,8 +67,6 @@ public abstract class AbstractSctpBase implements MAPDialogListener, MAPServiceS
 
 	public void init() {
 		try {
-			Properties tckProperties = new Properties();
-
 			InputStream inStreamLog4j = AbstractSctpBase.class.getResourceAsStream("/log4j.properties");
 
 			System.out.println("Input Stream = " + inStreamLog4j);

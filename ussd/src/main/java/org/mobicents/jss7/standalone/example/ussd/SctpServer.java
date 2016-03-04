@@ -9,10 +9,11 @@ import org.mobicents.protocols.sctp.ManagementImpl;
 import org.mobicents.protocols.ss7.m3ua.ExchangeType;
 import org.mobicents.protocols.ss7.m3ua.Functionality;
 import org.mobicents.protocols.ss7.m3ua.IPSPType;
-import org.mobicents.protocols.ss7.m3ua.impl.As;
-import org.mobicents.protocols.ss7.m3ua.impl.Asp;
-import org.mobicents.protocols.ss7.m3ua.impl.AspFactory;
-import org.mobicents.protocols.ss7.m3ua.impl.M3UAManagement;
+import org.mobicents.protocols.ss7.m3ua.As;
+import org.mobicents.protocols.ss7.m3ua.Asp;
+import org.mobicents.protocols.ss7.m3ua.AspFactory;
+import org.mobicents.protocols.ss7.m3ua.M3UAManagement;
+import org.mobicents.protocols.ss7.m3ua.impl.M3UAManagementImpl;
 import org.mobicents.protocols.ss7.m3ua.parameter.RoutingContext;
 import org.mobicents.protocols.ss7.m3ua.parameter.TrafficModeType;
 import org.mobicents.protocols.ss7.map.MAPStackImpl;
@@ -23,7 +24,6 @@ import org.mobicents.protocols.ss7.map.api.MAPProvider;
 import org.mobicents.protocols.ss7.map.api.dialog.MAPAbortProviderReason;
 import org.mobicents.protocols.ss7.map.api.dialog.MAPAbortSource;
 import org.mobicents.protocols.ss7.map.api.dialog.MAPNoticeProblemDiagnostic;
-import org.mobicents.protocols.ss7.map.api.dialog.MAPProviderError;
 import org.mobicents.protocols.ss7.map.api.dialog.MAPRefuseReason;
 import org.mobicents.protocols.ss7.map.api.dialog.MAPUserAbortChoice;
 import org.mobicents.protocols.ss7.map.api.errors.MAPErrorMessage;
@@ -34,19 +34,31 @@ import org.mobicents.protocols.ss7.map.api.primitives.ISDNAddressString;
 import org.mobicents.protocols.ss7.map.api.primitives.MAPExtensionContainer;
 import org.mobicents.protocols.ss7.map.api.primitives.NumberingPlan;
 import org.mobicents.protocols.ss7.map.api.primitives.USSDString;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.ActivateSSRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.ActivateSSResponse;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.DeactivateSSRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.DeactivateSSResponse;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.EraseSSRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.EraseSSResponse;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.GetPasswordRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.GetPasswordResponse;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.InterrogateSSRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.InterrogateSSResponse;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.MAPDialogSupplementary;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.ProcessUnstructuredSSRequest;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.ProcessUnstructuredSSResponse;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.RegisterPasswordRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.RegisterPasswordResponse;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.RegisterSSRequest;
+import org.mobicents.protocols.ss7.map.api.service.supplementary.RegisterSSResponse;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.UnstructuredSSNotifyRequest;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.UnstructuredSSNotifyResponse;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.UnstructuredSSRequest;
 import org.mobicents.protocols.ss7.map.api.service.supplementary.UnstructuredSSResponse;
-import org.mobicents.protocols.ss7.sccp.impl.RemoteSignalingPointCode;
-import org.mobicents.protocols.ss7.sccp.impl.RemoteSubSystem;
-import org.mobicents.protocols.ss7.sccp.impl.SccpResource;
+import org.mobicents.protocols.ss7.map.datacoding.CBSDataCodingSchemeImpl;
+import org.mobicents.protocols.ss7.mtp.Mtp3UserPart;
+import org.mobicents.protocols.ss7.sccp.SccpResource;
 import org.mobicents.protocols.ss7.sccp.impl.SccpStackImpl;
-import org.mobicents.protocols.ss7.sccp.impl.router.Mtp3Destination;
-import org.mobicents.protocols.ss7.sccp.impl.router.Mtp3ServiceAccessPoint;
 import org.mobicents.protocols.ss7.tcap.asn.ApplicationContextName;
 import org.mobicents.protocols.ss7.tcap.asn.comp.Problem;
 
@@ -66,7 +78,6 @@ public class SctpServer extends AbstractSctpBase {
 
 	// SCCP
 	private SccpStackImpl sccpStack;
-	private SccpResource sccpResource;
 
 	// MAP
 	private MAPStackImpl mapStack;
@@ -76,8 +87,8 @@ public class SctpServer extends AbstractSctpBase {
 		logger.debug("Initializing SCTP Stack ....");
 		this.sctpManagement = new ManagementImpl("Server");
 		this.sctpManagement.setSingleThread(true);
-		this.sctpManagement.setConnectDelay(10000);
 		this.sctpManagement.start();
+		this.sctpManagement.setConnectDelay(10000);
 		this.sctpManagement.removeAllResourses();
 
 		// 1. Create SCTP Server
@@ -94,8 +105,9 @@ public class SctpServer extends AbstractSctpBase {
 
 	private void initM3UA() throws Exception {
 		logger.debug("Initializing M3UA Stack ....");
-		this.serverM3UAMgmt = new M3UAManagement("Server");
-		this.serverM3UAMgmt.setTransportManagement(this.sctpManagement);
+		M3UAManagementImpl m3uaImpl = new M3UAManagementImpl("Client", "Example");
+		m3uaImpl.setTransportManagement(this.sctpManagement);
+		this.serverM3UAMgmt = m3uaImpl;
 		this.serverM3UAMgmt.start();
 		this.serverM3UAMgmt.removeAllResourses();
 
@@ -104,7 +116,7 @@ public class SctpServer extends AbstractSctpBase {
 		RoutingContext rc = factory.createRoutingContext(new long[] { 100l });
 		TrafficModeType trafficModeType = factory.createTrafficModeType(TrafficModeType.Loadshare);
 		As as = this.serverM3UAMgmt.createAs("RAS1", Functionality.SGW, ExchangeType.SE, IPSPType.CLIENT, rc,
-				trafficModeType, null);
+				trafficModeType, 1, null);
 
 		// Step 2 : Create ASP
 		AspFactory aspFactor = this.serverM3UAMgmt.createAspFactory("RASP1", SERVER_ASSOCIATION_NAME);
@@ -117,29 +129,25 @@ public class SctpServer extends AbstractSctpBase {
 		logger.debug("Initialized M3UA Stack ....");
 	}
 
-	private void initSCCP() {
+	private void initSCCP() throws Exception {
 		logger.debug("Initializing SCCP Stack ....");
 		this.sccpStack = new SccpStackImpl("MapLoadServerSccpStack");
-		this.sccpStack.setMtp3UserPart(1, this.serverM3UAMgmt);
+		this.sccpStack.setMtp3UserPart(1, (Mtp3UserPart) this.serverM3UAMgmt);
 
 		this.sccpStack.start();
 		this.sccpStack.removeAllResourses();
 
-		RemoteSignalingPointCode rspc = new RemoteSignalingPointCode(CLIENT_SPC, 0, 0);
-		RemoteSubSystem rss = new RemoteSubSystem(CLIENT_SPC, SSN, 0, false);
-		this.sccpStack.getSccpResource().addRemoteSpc(0, rspc);
-		this.sccpStack.getSccpResource().addRemoteSsn(0, rss);
+		this.sccpStack.getSccpResource().addRemoteSpc(1, CLIENT_SPC, 0, 0);
+		this.sccpStack.getSccpResource().addRemoteSsn(1, CLIENT_SPC, SSN, 0, false);
 
-		Mtp3ServiceAccessPoint sap = new Mtp3ServiceAccessPoint(1, SERVET_SPC, NETWORK_INDICATOR);
-		Mtp3Destination dest = new Mtp3Destination(CLIENT_SPC, CLIENT_SPC, 0, 255, 255);
-		this.sccpStack.getRouter().addMtp3ServiceAccessPoint(1, sap);
-		this.sccpStack.getRouter().addMtp3Destination(1, 1, dest);
+		this.sccpStack.getRouter().addMtp3ServiceAccessPoint(1, 1, SERVER_SPC, NETWORK_INDICATOR, NETWORK_ID);
+		this.sccpStack.getRouter().addMtp3Destination(1, 1, CLIENT_SPC, CLIENT_SPC, 0, 255, 255);
 		logger.debug("Initialized SCCP Stack ....");
 	}
 
-	private void initMAP() {
+	private void initMAP() throws Exception {
 		logger.debug("Initializing MAP Stack ....");
-		this.mapStack = new MAPStackImpl(this.sccpStack.getSccpProvider(), SSN);
+		this.mapStack = new MAPStackImpl("ServerMAPStack", this.sccpStack.getSccpProvider(), SSN);
 		this.mapProvider = this.mapStack.getMAPProvider();
 
 		this.mapProvider.addMAPDialogListener(this);
@@ -181,7 +189,7 @@ public class SctpServer extends AbstractSctpBase {
 	public void onDialogAccept(MAPDialog mapDialog, MAPExtensionContainer extensionContainer) {
 		if (logger.isDebugEnabled()) {
 			logger.debug(String.format("onDialogAccept for DialogId=%d MAPExtensionContainer=%s",
-					mapDialog.getDialogId(), extensionContainer));
+					mapDialog.getLocalDialogId(), extensionContainer));
 		}
 	}
 
@@ -194,7 +202,7 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onDialogClose(MAPDialog mapDialog) {
 		if (logger.isDebugEnabled()) {
-			logger.debug(String.format("onDialogClose for Dialog=%d", mapDialog.getDialogId()));
+			logger.debug(String.format("onDialogClose for Dialog=%d", mapDialog.getLocalDialogId()));
 		}
 	}
 
@@ -207,7 +215,7 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onDialogDelimiter(MAPDialog mapDialog) {
 		if (logger.isDebugEnabled()) {
-			logger.debug(String.format("onDialogDelimiter for DialogId=%d", mapDialog.getDialogId()));
+			logger.debug(String.format("onDialogDelimiter for DialogId=%d", mapDialog.getLocalDialogId()));
 		}
 	}
 
@@ -221,7 +229,7 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onDialogNotice(MAPDialog mapDialog, MAPNoticeProblemDiagnostic noticeProblemDiagnostic) {
 		logger.error(String.format("onDialogNotice for DialogId=%d MAPNoticeProblemDiagnostic=%s ",
-				mapDialog.getDialogId(), noticeProblemDiagnostic));
+				mapDialog.getLocalDialogId(), noticeProblemDiagnostic));
 	}
 
 	/*
@@ -238,7 +246,7 @@ public class SctpServer extends AbstractSctpBase {
 			MAPAbortSource abortSource, MAPExtensionContainer extensionContainer) {
 		logger.error(String
 				.format("onDialogProviderAbort for DialogId=%d MAPAbortProviderReason=%s MAPAbortSource=%s MAPExtensionContainer=%s",
-						mapDialog.getDialogId(), abortProviderReason, abortSource, extensionContainer));
+						mapDialog.getLocalDialogId(), abortProviderReason, abortSource, extensionContainer));
 	}
 
 	/*
@@ -252,11 +260,11 @@ public class SctpServer extends AbstractSctpBase {
 	 * org.mobicents.protocols.ss7.tcap.asn.ApplicationContextName,
 	 * org.mobicents.protocols.ss7.map.api.primitives.MAPExtensionContainer)
 	 */
-	public void onDialogReject(MAPDialog mapDialog, MAPRefuseReason refuseReason, MAPProviderError providerError,
+	public void onDialogReject(MAPDialog mapDialog, MAPRefuseReason refuseReason, /* MAPProviderError providerError, */
 			ApplicationContextName alternativeApplicationContext, MAPExtensionContainer extensionContainer) {
 		logger.error(String
 				.format("onDialogReject for DialogId=%d MAPRefuseReason=%s MAPProviderError=%s ApplicationContextName=%s MAPExtensionContainer=%s",
-						mapDialog.getDialogId(), refuseReason, providerError, alternativeApplicationContext,
+						mapDialog.getLocalDialogId(), refuseReason, /* providerError, */ alternativeApplicationContext,
 						extensionContainer));
 	}
 
@@ -269,7 +277,7 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onDialogRelease(MAPDialog mapDialog) {
 		if (logger.isDebugEnabled()) {
-			logger.debug(String.format("onDialogResease for DialogId=%d", mapDialog.getDialogId()));
+			logger.debug(String.format("onDialogResease for DialogId=%d", mapDialog.getLocalDialogId()));
 		}
 	}
 
@@ -288,7 +296,7 @@ public class SctpServer extends AbstractSctpBase {
 		if (logger.isDebugEnabled()) {
 			logger.debug(String
 					.format("onDialogRequest for DialogId=%d DestinationReference=%s OriginReference=%s MAPExtensionContainer=%s",
-							mapDialog.getDialogId(), destReference, origReference, extensionContainer));
+							mapDialog.getLocalDialogId(), destReference, origReference, extensionContainer));
 		}
 	}
 
@@ -308,7 +316,7 @@ public class SctpServer extends AbstractSctpBase {
 		if (logger.isDebugEnabled()) {
 			logger.debug(String.format(
 					"onDialogRequestEricsson for DialogId=%d DestinationReference=%s OriginReference=%s ",
-					mapDialog.getDialogId(), destReference, origReference));
+					mapDialog.getLocalDialogId(), destReference, origReference));
 		}
 	}
 
@@ -320,7 +328,7 @@ public class SctpServer extends AbstractSctpBase {
 	 * (org.mobicents.protocols.ss7.map.api.MAPDialog)
 	 */
 	public void onDialogTimeout(MAPDialog mapDialog) {
-		logger.error(String.format("onDialogTimeout for DialogId=%d", mapDialog.getDialogId()));
+		logger.error(String.format("onDialogTimeout for DialogId=%d", mapDialog.getLocalDialogId()));
 	}
 
 	/*
@@ -335,7 +343,7 @@ public class SctpServer extends AbstractSctpBase {
 	public void onDialogUserAbort(MAPDialog mapDialog, MAPUserAbortChoice userReason,
 			MAPExtensionContainer extensionContainer) {
 		logger.error(String.format("onDialogUserAbort for DialogId=%d MAPUserAbortChoice=%s MAPExtensionContainer=%s",
-				mapDialog.getDialogId(), userReason, extensionContainer));
+				mapDialog.getLocalDialogId(), userReason, extensionContainer));
 	}
 
 	/*
@@ -350,7 +358,7 @@ public class SctpServer extends AbstractSctpBase {
 	public void onProcessUnstructuredSSRequest(ProcessUnstructuredSSRequest procUnstrReqInd) {
 		if (logger.isDebugEnabled()) {
 			logger.debug(String.format("onProcessUnstructuredSSRequestIndication for DialogId=%d. Ussd String=%s",
-					procUnstrReqInd.getMAPDialog().getDialogId(), procUnstrReqInd.getUSSDString().getString()));
+					procUnstrReqInd.getMAPDialog().getLocalDialogId(), procUnstrReqInd.getUSSDString().toString()));
 		}
 		try {
 			long invokeId = procUnstrReqInd.getInvokeId();
@@ -365,7 +373,7 @@ public class SctpServer extends AbstractSctpBase {
 			ISDNAddressString msisdn = this.mapProvider.getMAPParameterFactory().createISDNAddressString(
 					AddressNature.international_number, NumberingPlan.ISDN, "31628838002");
 
-			dialog.addUnstructuredSSRequest(ussdDataCodingScheme, ussdStrObj, null, msisdn);
+			dialog.addUnstructuredSSRequest(new CBSDataCodingSchemeImpl(ussdDataCodingScheme), ussdStrObj, null, msisdn);
 			dialog.send();
 		} catch (MAPException e) {
 			logger.error("Error while sending UnstructuredSSRequest ", e);
@@ -384,7 +392,7 @@ public class SctpServer extends AbstractSctpBase {
 	public void onProcessUnstructuredSSResponse(ProcessUnstructuredSSResponse procUnstrResInd) {
 		// Server shouldn't be getting ProcessUnstructuredSSResponseIndication
 		logger.error(String.format("onProcessUnstructuredSSResponseIndication for Dialog=%d and invokeId=%d",
-				procUnstrResInd.getMAPDialog().getDialogId(), procUnstrResInd.getInvokeId()));
+				procUnstrResInd.getMAPDialog().getLocalDialogId(), procUnstrResInd.getInvokeId()));
 	}
 
 	/*
@@ -399,7 +407,7 @@ public class SctpServer extends AbstractSctpBase {
 		// This error condition. Client should never receive the
 		// UnstructuredSSNotifyRequestIndication
 		logger.error(String.format("onUnstructuredSSNotifyRequest for Dialog=%d and invokeId=%d", unstrNotifyInd
-				.getMAPDialog().getDialogId(), unstrNotifyInd.getInvokeId()));
+				.getMAPDialog().getLocalDialogId(), unstrNotifyInd.getInvokeId()));
 	}
 
 	/*
@@ -415,7 +423,7 @@ public class SctpServer extends AbstractSctpBase {
 		// This error condition. Client should never receive the
 		// UnstructuredSSNotifyRequestIndication
 		logger.error(String.format("onUnstructuredSSNotifyResponse for Dialog=%d and invokeId=%d", unstrNotifyInd
-				.getMAPDialog().getDialogId(), unstrNotifyInd.getInvokeId()));
+				.getMAPDialog().getLocalDialogId(), unstrNotifyInd.getInvokeId()));
 	}
 
 	/*
@@ -429,7 +437,7 @@ public class SctpServer extends AbstractSctpBase {
 	public void onUnstructuredSSRequest(UnstructuredSSRequest unstrReqInd) {
 		// Server shouldn't be getting UnstructuredSSRequestIndication
 		logger.error(String.format("onUnstructuredSSRequestIndication for Dialog=%d and invokeId=%d", unstrReqInd
-				.getMAPDialog().getDialogId(), unstrReqInd.getInvokeId()));
+				.getMAPDialog().getLocalDialogId(), unstrReqInd.getInvokeId()));
 	}
 
 	/*
@@ -443,7 +451,7 @@ public class SctpServer extends AbstractSctpBase {
 	public void onUnstructuredSSResponse(UnstructuredSSResponse unstrResInd) {
 		if (logger.isDebugEnabled()) {
 			logger.debug(String.format("onUnstructuredSSResponseIndication for DialogId=%d Ussd String=%s", unstrResInd
-					.getMAPDialog().getDialogId(), unstrResInd.getUSSDString().getString()));
+					.getMAPDialog().getLocalDialogId(), unstrResInd.getUSSDString().toString()));
 		}
 		try {
 			USSDString ussdStrObj = this.mapProvider.getMAPParameterFactory().createUSSDString("Your balance is 500");
@@ -453,7 +461,7 @@ public class SctpServer extends AbstractSctpBase {
 			AddressString msisdn = this.mapProvider.getMAPParameterFactory().createAddressString(
 					AddressNature.international_number, NumberingPlan.ISDN, "31628838002");
 
-			dialog.addProcessUnstructuredSSResponse(((Long) dialog.getUserObject()).longValue(), ussdDataCodingScheme,
+			dialog.addProcessUnstructuredSSResponse(((Long) dialog.getUserObject()).longValue(), new CBSDataCodingSchemeImpl(ussdDataCodingScheme),
 					ussdStrObj);
 			dialog.close(false);
 		} catch (MAPException e) {
@@ -471,7 +479,7 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onErrorComponent(MAPDialog mapDialog, Long invokeId, MAPErrorMessage mapErrorMessage) {
 		logger.error(String.format("onErrorComponent for Dialog=%d and invokeId=%d MAPErrorMessage=%s",
-				mapDialog.getDialogId(), invokeId, mapErrorMessage));
+				mapDialog.getLocalDialogId(), invokeId, mapErrorMessage));
 	}
 
 	/*
@@ -482,7 +490,7 @@ public class SctpServer extends AbstractSctpBase {
 	 * (org.mobicents.protocols.ss7.map.api.MAPDialog, java.lang.Long)
 	 */
 	public void onInvokeTimeout(MAPDialog mapDialog, Long invokeId) {
-		logger.error(String.format("onInvokeTimeout for Dialog=%d and invokeId=%d", mapDialog.getDialogId(), invokeId));
+		logger.error(String.format("onInvokeTimeout for Dialog=%d and invokeId=%d", mapDialog.getLocalDialogId(), invokeId));
 	}
 
 	/*
@@ -494,6 +502,7 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onMAPMessage(MAPMessage arg0) {
 		// TODO Auto-generated method stub
+		logger.error(String.format("onMAPMessage for invokeId=%d", arg0.getInvokeId()));
 
 	}
 
@@ -505,9 +514,9 @@ public class SctpServer extends AbstractSctpBase {
 	 * java.lang.Long,
 	 * org.mobicents.protocols.ss7.map.api.dialog.MAPProviderError)
 	 */
-	public void onProviderErrorComponent(MAPDialog mapDialog, Long invokeId, MAPProviderError providerError) {
-		logger.error(String.format("onProviderErrorComponent for Dialog=%d and invokeId=%d MAPProviderError=%s",
-				mapDialog.getDialogId(), invokeId, providerError));
+	public void onProviderErrorComponent(MAPDialog mapDialog, Long invokeId /*, MAPProviderError providerError*/) {
+		logger.error(String.format("onProviderErrorComponent for Dialog=%d and invokeId=%d",
+				mapDialog.getLocalDialogId(), invokeId));
 	}
 
 	/*
@@ -520,7 +529,260 @@ public class SctpServer extends AbstractSctpBase {
 	 */
 	public void onRejectComponent(MAPDialog mapDialog, Long invokeId, Problem problem) {
 		logger.error(String.format("onRejectComponent for Dialog=%d and invokeId=%d Problem=%s",
-				mapDialog.getDialogId(), invokeId, problem));
+				mapDialog.getLocalDialogId(), invokeId, problem));
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onRegisterSSRequest(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.RegisterSSRequest)
+	 */
+	public void onRegisterSSRequest(RegisterSSRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onRegisterSSRequest for Dialog=%d and invokeId=%d",
+					request.getMAPDialog().getLocalDialogId(),
+					request.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onRegisterSSResponse(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.RegisterSSResponse)
+	 */
+	public void onRegisterSSResponse(RegisterSSResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onRegisterSSResponse for Dialog=%d and invokeId=%d",
+					response.getMAPDialog().getLocalDialogId(),
+					response.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onEraseSSRequest(org.mobicents.protocols.ss7
+	 * .map.api.service.supplementary.EraseSSRequest)
+	 */
+	public void onEraseSSRequest(EraseSSRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onEraseSSRequest for Dialog=%d and invokeId=%d", request
+							.getMAPDialog().getLocalDialogId(), request
+							.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onEraseSSResponse(org.mobicents.protocols.
+	 * ss7.map.api.service.supplementary.EraseSSResponse)
+	 */
+	public void onEraseSSResponse(EraseSSResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onEraseSSResponse for Dialog=%d and invokeId=%d", response
+							.getMAPDialog().getLocalDialogId(), response
+							.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onActivateSSRequest(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.ActivateSSRequest)
+	 */
+	public void onActivateSSRequest(ActivateSSRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onActivateSSRequest for Dialog=%d and invokeId=%d",
+					request.getMAPDialog().getLocalDialogId(),
+					request.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onActivateSSResponse(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.ActivateSSResponse)
+	 */
+	public void onActivateSSResponse(ActivateSSResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onActivateSSResponse for Dialog=%d and invokeId=%d",
+					response.getMAPDialog().getLocalDialogId(),
+					response.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onDeactivateSSRequest(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.DeactivateSSRequest)
+	 */
+	public void onDeactivateSSRequest(DeactivateSSRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onDeactivateSSRequest for Dialog=%d and invokeId=%d",
+					request.getMAPDialog().getLocalDialogId(),
+					request.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onDeactivateSSResponse(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.DeactivateSSResponse)
+	 */
+	public void onDeactivateSSResponse(DeactivateSSResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onDeactivateSSResponse for Dialog=%d and invokeId=%d",
+					response.getMAPDialog().getLocalDialogId(),
+					response.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onInterrogateSSRequest(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.InterrogateSSRequest)
+	 */
+	public void onInterrogateSSRequest(InterrogateSSRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onInterrogateSSResponse for Dialog=%d and invokeId=%d",
+					request.getMAPDialog().getLocalDialogId(),
+					request.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onInterrogateSSResponse(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.InterrogateSSResponse)
+	 */
+	public void onInterrogateSSResponse(InterrogateSSResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onInterrogateSSResponse for Dialog=%d and invokeId=%d",
+					response.getMAPDialog().getLocalDialogId(),
+					response.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onGetPasswordRequest(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.GetPasswordRequest)
+	 */
+	public void onGetPasswordRequest(GetPasswordRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onGetPasswordRequest for Dialog=%d and invokeId=%d",
+					request.getMAPDialog().getLocalDialogId(),
+					request.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onGetPasswordResponse(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.GetPasswordResponse)
+	 */
+	public void onGetPasswordResponse(GetPasswordResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onGetPasswordResponse for Dialog=%d and invokeId=%d",
+					response.getMAPDialog().getLocalDialogId(),
+					response.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onRegisterPasswordRequest(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.RegisterPasswordRequest)
+	 */
+	public void onRegisterPasswordRequest(RegisterPasswordRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onRegisterPasswordRequest for Dialog=%d and invokeId=%d",
+					request.getMAPDialog().getLocalDialogId(),
+					request.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.mobicents.protocols.ss7.map.api.service.supplementary.
+	 * MAPServiceSupplementaryListener
+	 * #onRegisterPasswordResponse(org.mobicents.protocols
+	 * .ss7.map.api.service.supplementary.RegisterPasswordResponse)
+	 */
+	public void onRegisterPasswordResponse(RegisterPasswordResponse response) {
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format(
+					"onRegisterPasswordResponse for Dialog=%d and invokeId=%d",
+					response.getMAPDialog().getLocalDialogId(),
+					response.getInvokeId()));
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * org.mobicents.protocols.ss7.map.api.MAPServiceListener#onRejectComponent
+	 * (org.mobicents.protocols.ss7.map.api.MAPDialog, java.lang.Long,
+	 * org.mobicents.protocols.ss7.tcap.asn.comp.Problem, boolean)
+	 */
+	public void onRejectComponent(MAPDialog mapDialog, Long invokeId,
+			Problem problem, boolean isLocalOriginated) {
+		logger.error(String
+				.format("onRejectComponent for Dialog=%d and InvokeId=%d and Problem=%s",
+						mapDialog.getLocalDialogId(), invokeId, problem));
 	}
 
 	/**
